@@ -67,12 +67,14 @@ end
 -- @param pathOrHandle Either the path to the music file or the already loaded sound/stream handle.
 -- @param name The name of the track, used for easy access. Optional.
 -- @return The index for the newly added track as well as the name if provided ( in case it was created dynamically ).
-function GGMusic:add( pathOrHandle, name )
+-- @param baseDirectory The base directory of the music file. Optional, defaults to system.ResourceDirectory.
+function GGMusic:add( pathOrHandle, name, baseDirectory )
 	
 	self.tracks[ #self.tracks + 1 ] = 
 	{ 
 		path = pathOrHandle,
 		handle = pathOrHandle,
+		baseDirectory = baseDirectory or system.ResourceDirectory,
 		name = name 
 	}
 
@@ -162,7 +164,7 @@ function GGMusic:play( name )
 		}
 		
 		if not track.handle or type( track.handle ) == "string" then			
-			track.handle = audio.loadStream( track.path )
+			track.handle = audio.loadStream( track.path, track.baseDirectory )
 		end
 		
 		audio.stop( self.channel )
