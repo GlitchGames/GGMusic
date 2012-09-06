@@ -83,6 +83,10 @@ function GGMusic:add( pathOrHandle, name, baseDirectory )
 		self.currentIndex = 1
 	end
 	
+	if self.random then
+		self.currentTrack = self.tracks[ math.random( 1, #self.tracks ) ]
+	end
+	
 	return #self.tracks, name
 	
 end
@@ -111,8 +115,10 @@ function GGMusic:fadeOut( time, onComplete )
 end
 
 --- Stops the current track and jumps to the next one. The next track will be random if .random is set to true.
-function GGMusic:next()
+-- @param onComplete Function to be called when the track is complete. Optional. If the onComplete function returns true, the next track won't play.
+function GGMusic:next( onComplete )
 	
+	local previousIndex = self.currentIndex
 	local nextIndex = self.currentIndex
 	
 	if self.random then
@@ -121,6 +127,10 @@ function GGMusic:next()
 		end
 	else
 		nextIndex = self.currentIndex + 1
+	end
+	
+	if previousIndex == nextIndex then
+		nextIndex = nextIndex + 1
 	end
 	
 	if nextIndex > #self.tracks then
@@ -132,7 +142,7 @@ function GGMusic:next()
 	self.currentTrack = self.tracks[ self.currentIndex ]
 	
 	self:stop()
-	self:play()
+	self:play( nil, onComplete )
 	
 end
 
@@ -143,7 +153,22 @@ end
 
 --- Starts playing the current track. If one is already playing it will be stopped immediately.
 -- @param name The name of the track to play. Optional.
-function GGMusic:play( name )
+-- @param onComplete Function to be called when the track is complete. Optional. If the onComplete function returns true, the next track won't play.
+function GGMusic:play( name, onComplete )
+	
+	local onTrackComplete = function( event )
+	
+		local handled = false
+		
+		if onComplete then
+			handled = onComplete( event )
+		end
+		
+		if not handled and event.completed then
+			self:next()
+		end
+		
+	end
 	
 	local track = self.currentTrack
 	
@@ -166,6 +191,8 @@ function GGMusic:play( name )
 		if not track.handle or type( track.handle ) == "string" then			
 			track.handle = audio.loadStream( track.path, track.baseDirectory )
 		end
+		
+		options.onComplete = onTrackComplete
 		
 		audio.stop( self.channel )
 		audio.play( track.handle, options )
