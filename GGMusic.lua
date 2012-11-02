@@ -59,6 +59,8 @@ function GGMusic:new()
     self.channel = audio.findFreeChannel()
     self.volume = 1
     
+    self.enabled = true
+     
     return self
     
 end
@@ -163,6 +165,10 @@ end
 -- @param name The name of the track to play. Optional.
 -- @param onComplete Function to be called when the track is complete. Optional. If the onComplete function returns true, the next track won't play.
 function GGMusic:play( name, onComplete )
+	
+	if not self.enabled then
+		return
+	end
 	
 	local onTrackComplete = function( event )
 	
