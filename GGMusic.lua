@@ -54,7 +54,7 @@ function GGMusic:new()
     self.currentTrack = nil
     
     self.random = false
-    self.loop = false
+    self.loop = true
     
     self.channel = audio.findFreeChannel()
     self.volume = 1
@@ -134,7 +134,11 @@ function GGMusic:next( onComplete )
 	end
 	
 	if nextIndex > #self.tracks then
-		nextIndex = 1
+		if self.random or self.loop then
+			nextIndex = 1
+		else
+			return
+		end
 	end
 	
 	self.currentIndex = nextIndex
