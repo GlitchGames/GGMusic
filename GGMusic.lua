@@ -122,8 +122,12 @@ function GGMusic:next( onComplete )
 	local nextIndex = self.currentIndex
 	
 	if self.random then
-		while nextIndex == self.currentIndex do
-			nextIndex = math.random( 1, #self.tracks )
+		if #self.tracks > 1 then
+			while nextIndex == self.currentIndex do
+				nextIndex = math.random( 1, #self.tracks )
+			end
+		else
+			nextIndex = 1
 		end
 	else
 		nextIndex = self.currentIndex + 1
