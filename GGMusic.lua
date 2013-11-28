@@ -41,8 +41,9 @@ local GGMusic = {}
 local GGMusic_mt = { __index = GGMusic }
 
 --- Initiates a new GGMusic object.
+-- @param channels A table containing what channels have been reserved for this music library.
 -- @return The new object.
-function GGMusic:new()
+function GGMusic:new( channels )
     
     local self = {}
     
@@ -56,11 +57,12 @@ function GGMusic:new()
     self.random = false
     self.loop = true
     
-    self.channel = audio.findFreeChannel()
     self.volume = 1
     
     self.enabled = true
      
+    self.channels = channels
+      
     return self
     
 end
@@ -96,7 +98,8 @@ end
 --- Fades out the volume of the currently playing track. When complete the track will be stopped and the volume reset.
 -- @param time The duration of the fadeout. Optional, defaults to 500.
 -- @param onComplete Function to be called when the fade is complete. Optional.
-function GGMusic:fadeOut( time, onComplete )
+-- @param channel The channel number. Optional, defaults to all of them.
+function GGMusic:fadeOut( time, onComplete, channel )
 
 	time = time or 500
 	
@@ -105,12 +108,12 @@ function GGMusic:fadeOut( time, onComplete )
 	local onComplete = function()
 		if t then timer.cancel( t ) end
 		t = nil
-		self:stop()
+		self:stop( channel )
 		self:setVolume( self.volume )
 		if onComplete then onComplete() end
 	end
 	
-	audio.fadeOut{ channel = self.channel, time = time }
+	audio.fadeOut{ channel = channel, time = time }
 	
 	t = timer.performWithDelay( time, onComplete, 1 )
 	
@@ -118,7 +121,7 @@ end
 
 --- Stops the current track and jumps to the next one. The next track will be random if .random is set to true.
 -- @param onComplete Function to be called when the track is complete. Optional. If the onComplete function returns true, the next track won't play.
-function GGMusic:next( onComplete )
+function GGMusic:next( channel, onComplete )
 	
 	local previousIndex = self.currentIndex
 	local nextIndex = self.currentIndex
@@ -151,24 +154,30 @@ function GGMusic:next( onComplete )
 	
 	self.currentTrack = self.tracks[ self.currentIndex ]
 	
-	self:stop()
-	self:play( nil, onComplete )
+	self:play( nil, { onComplete = onComplete } )
 	
 end
 
 --- Pauses the currently playing track.
-function GGMusic:pause()
-	audio.pause( self.channel )
+-- @param channel The channel number.
+function GGMusic:pause( channel )
+	audio.pause( channel )
 end
 
 --- Starts playing the current track. If one is already playing it will be stopped immediately.
 -- @param name The name of the track to play. Optional.
--- @param onComplete Function to be called when the track is complete. Optional. If the onComplete function returns true, the next track won't play.
-function GGMusic:play( name, onComplete )
+-- @param options Options for the track. Optional. If there is an onComplete function and it returns true, the next track won't play.
+function GGMusic:play( name, options )
 	
 	if not self.enabled then
 		return
 	end
+
+	if not name then
+		return
+	end
+
+	local onComplete = options.onComplete
 	
 	local onTrackComplete = function( event )
 	
@@ -179,7 +188,7 @@ function GGMusic:play( name, onComplete )
 		end
 		
 		if not handled and event.completed then
-			self:next()
+			self:next( options.channel or self:findFreeChannel() )
 		end
 		
 	end
@@ -193,22 +202,23 @@ function GGMusic:play( name, onComplete )
 				break
 			end
 		end	
+	else
+		track = nil
 	end
 	
 	if track then
-	
-		local options = 
-		{ 
-			channel = self.channel 
-		}
+
+		options = options or {}
+		options.channel = options.channel or self:findFreeChannel()
 		
+		audio.setVolume( self.volume, { channel = options.channel } )
+
 		if not track.handle or type( track.handle ) == "string" then			
 			track.handle = audio.loadStream( track.path, track.baseDirectory )
 		end
 		
 		options.onComplete = onTrackComplete
-		
-		audio.stop( self.channel )
+
 		audio.play( track.handle, options )
 		
 	end
@@ -219,7 +229,11 @@ end
 -- @param volume The new volume.
 function GGMusic:setVolume( volume )
 	self.volume = volume
-	audio.setVolume( self.volume, { channel = self.channel } )
+	
+	for i = 1, #self.channels, 1 do
+		audio.setVolume( self.volume, { channel = self.channels[ i ] } )
+	end
+	
 end
 
 --- Gets the volume of the music library.
@@ -229,15 +243,35 @@ function GGMusic:getVolume()
 end
 
 --- Stops the currently playing track and rewinds it back to beginning.
-function GGMusic:stop()
-	audio.rewind( self.channel ) 
-	audio.stop( self.channel )
+-- @param channel The channel number.
+function GGMusic:stop( channel )
+	audio.rewind( channel ) 
+	audio.stop( channel )
 end
+
+--- Finds a free channel.
+-- @return The channel number. Nil if none found.
+function GGMusic:findFreeChannel()
+
+	if self.channels then
+		for i = 1, #self.channels, 1 do
+			if not audio.isChannelActive( self.channels[ i ] ) then
+				return self.channels[ i ]
+			end
+		end
+	else
+		return audio.findFreeChannel()
+	end
+	
+end
+
 
 --- Destroys this GGMusic object.
 function GGMusic:destroy()
 
-	self:stop()
+	for i = 1, #self.channels, 1 do
+		self:stop( self.channels[ i ] )
+	end
 	
 	for i = 1, #self.tracks, 1 do
 		if self.tracks[ i ].handle then
